@@ -1,0 +1,223 @@
+;;;==============
+;;;  JazzScheme
+;;;==============
+;;;
+;;;; Jazz Image Foreign
+;;;
+;;;  The contents of this file are subject to the Mozilla Public License Version
+;;;  1.1 (the "License"); you may not use this file except in compliance with
+;;;  the License. You may obtain a copy of the License at
+;;;  http://www.mozilla.org/MPL/
+;;;
+;;;  Software distributed under the License is distributed on an "AS IS" basis,
+;;;  WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License
+;;;  for the specific language governing rights and limitations under the
+;;;  License.
+;;;
+;;;  The Original Code is JazzScheme.
+;;;
+;;;  The Initial Developer of the Original Code is Guillaume Cartier.
+;;;  Portions created by the Initial Developer are Copyright (C) 1996-2015
+;;;  the Initial Developer. All Rights Reserved.
+;;;
+;;;  Contributor(s):
+;;;
+;;;  Alternatively, the contents of this file may be used under the terms of
+;;;  the GNU General Public License Version 2 or later (the "GPL"), in which
+;;;  case the provisions of the GPL are applicable instead of those above. If
+;;;  you wish to allow use of your version of this file only under the terms of
+;;;  the GPL, and not to allow others to use your version of this file under the
+;;;  terms of the MPL, indicate your decision by deleting the provisions above
+;;;  and replace them with the notice and other provisions required by the GPL.
+;;;  If you do not delete the provisions above, a recipient may use your version
+;;;  of this file under the terms of any one of the MPL or the GPL.
+;;;
+;;;  See www.jazzscheme.org for details.
+
+
+(module protected jazz.image.foreign jazz
+
+
+(import (jazz.foreign)
+        (jazz.platform.types))
+
+
+;;;
+;;;; PNG
+;;;
+
+
+(c-declare jazz.image.foreign #/C/
+  
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdarg.h>
+
+#define PNG_DEBUG 3
+#include <png.h>
+
+void abort_(const char * s, ...)
+{
+        va_list args;
+        va_start(args, s);
+        vfprintf(stderr, s, args);
+        fprintf(stderr, "\n");
+        va_end(args);
+        abort();
+}
+
+int x, y;
+
+int width, height;
+png_byte color_type;
+png_byte bit_depth;
+
+png_structp png_ptr;
+png_infop info_ptr;
+int number_of_passes;
+png_bytep * row_pointers;
+
+//#)
+
+
+(c-external (read-png char-string) scheme-object
+  #/C/
+    char* file_name = ___arg1;
+    char header[8];    // 8 is the maximum size that can be checked
+
+    /* open file and test for it being a png */
+    FILE *fp = fopen(file_name, "rb");
+    if (!fp)
+        abort_("[read_png_file] File %s could not be opened for reading", file_name);
+    fread(header, 1, 8, fp);
+    if (png_sig_cmp(header, 0, 8))
+        abort_("[read_png_file] File %s is not recognized as a PNG file", file_name);
+
+
+    /* initialize stuff */
+    png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+
+    if (!png_ptr)
+        abort_("[read_png_file] png_create_read_struct failed");
+
+    info_ptr = png_create_info_struct(png_ptr);
+    if (!info_ptr)
+        abort_("[read_png_file] png_create_info_struct failed");
+
+    if (setjmp(png_jmpbuf(png_ptr)))
+        abort_("[read_png_file] Error during init_io");
+
+    png_init_io(png_ptr, fp);
+    png_set_sig_bytes(png_ptr, 8);
+
+    png_read_info(png_ptr, info_ptr);
+
+    width = png_get_image_width(png_ptr, info_ptr);
+    height = png_get_image_height(png_ptr, info_ptr);
+    color_type = png_get_color_type(png_ptr, info_ptr);
+    bit_depth = png_get_bit_depth(png_ptr, info_ptr);
+
+    number_of_passes = png_set_interlace_handling(png_ptr);
+    png_read_update_info(png_ptr, info_ptr);
+
+    /* read file */
+    if (setjmp(png_jmpbuf(png_ptr)))
+        abort_("[read_png_file] Error during read_image");
+
+    ___SCMOBJ r = ___EXT(___alloc_scmobj) (NULL, ___sU8VECTOR, height * png_get_rowbytes(png_ptr,info_ptr));
+    ___U8 *ptr = ___CAST(___U8*,___BODY(r));
+    
+    // row_pointers = (png_bytep*) ptr;
+    // for (y=0; y<height; y++)
+    //     row_pointers[y] = (png_byte*) malloc(png_get_rowbytes(png_ptr,info_ptr));
+
+    // png_read_image(png_ptr, row_pointers);
+    
+    png_read_image(png_ptr, (png_bytep *) ptr);
+
+    fclose(fp);
+    
+    ___result = r;
+//#)
+
+
+;;;
+;;;; JPEG
+;;;
+
+
+(c-declare jazz.image.foreign #/C/
+  
+#include <stdio.h>
+#include <jpeglib.h>
+#include <stdlib.h>
+
+//#)
+
+
+(c-external (read-jpeg char-string) scheme-object
+  #/C/
+     char* filename = ___arg1;
+     
+	/* these are standard libjpeg structures for reading(decompression) */
+	struct jpeg_decompress_struct cinfo;
+	struct jpeg_error_mgr jerr;
+	
+	/* libjpeg data structure for storing one row, that is, scanline of an image */
+	JSAMPROW row_pointer[1];
+	
+	FILE *infile = fopen( filename, "rb" );
+	unsigned long location = 0;
+	int i = 0;
+	
+	if ( !infile )
+	{
+		printf("Error opening jpeg file %s\n!", filename );
+		return -1;
+	}
+	/* here we set up the standard libjpeg error handler */
+	cinfo.err = jpeg_std_error( &jerr );
+	/* setup decompression process and source, then read JPEG header */
+	jpeg_create_decompress( &cinfo );
+	/* this makes the library read from infile */
+	jpeg_stdio_src( &cinfo, infile );
+	/* reading the image header which contains image information */
+	jpeg_read_header( &cinfo, TRUE );
+	
+	/* Uncomment the following to output image information, if needed. */
+	/*--
+	printf( "JPEG File Information: \n" );
+	printf( "Image width and height: %d pixels and %d pixels.\n", cinfo.image_width, cinfo.image_height );
+	printf( "Color components per pixel: %d.\n", cinfo.num_components );
+	printf( "Color space: %d.\n", cinfo.jpeg_color_space );
+	--*/
+	
+	/* Start decompression jpeg here */
+	jpeg_start_decompress( &cinfo );
+
+	/* allocate memory to hold the uncompressed image */
+     ___SCMOBJ r = ___EXT(___alloc_scmobj) (NULL, ___sU8VECTOR, cinfo.output_width*cinfo.output_height*cinfo.num_components);
+     ___U8 *ptr = ___CAST(___U8*,___BODY(r));
+	unsigned char * raw_image = (unsigned char*) ptr;
+	// unsigned char * raw_image = (unsigned char*)malloc( cinfo.output_width*cinfo.output_height*cinfo.num_components );
+ 
+	/* now actually read the jpeg into the raw buffer */
+	row_pointer[0] = (unsigned char *)malloc( cinfo.output_width*cinfo.num_components );
+	/* read one scan line at a time */
+	while( cinfo.output_scanline < cinfo.image_height )
+	{
+		jpeg_read_scanlines( &cinfo, row_pointer, 1 );
+		for( i=0; i<cinfo.image_width*cinfo.num_components;i++) 
+			raw_image[location++] = row_pointer[0][i];
+	}
+	/* wrap up decompression, destroy objects, free pointers and close open files */
+	jpeg_finish_decompress( &cinfo );
+	jpeg_destroy_decompress( &cinfo );
+	free( row_pointer[0] );
+	fclose( infile );
+
+	/* yup, we succeeded! */
+	___result = r;
+//#))

@@ -1,0 +1,22 @@
+;;;==============
+;;;  JazzScheme
+;;;==============
+;;;
+;;;; Project
+;;;
+
+
+(data jazz.ide.data.project
+
+
+(import (jazz.editor.jazz))
+
+
+(form
+  (<Project>                 name: jazz.image description-file: {File :context ".package"}
+    (<Project-Directory>                      directory: {Directory :context "src"}
+      (<Project-Directory>                    directory: {Directory :context "src" "jazz"}
+        (<Project-Directory>                  directory: {Directory :context "src" "jazz" "image"}
+          (<Jazz-File>       name: _image     source: {File :context "src" "jazz" "image" "_image.jazz"})
+          (<Jazz-File>       name: foreign    source: {File :context "src" "jazz" "image" "foreign.jazz"})
+          (<Jazz-File>       name: product    source: {File :context "src" "jazz" "image" "product.jazz"})))))))

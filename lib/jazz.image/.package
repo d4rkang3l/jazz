@@ -1,0 +1,9 @@
+(package jazz.image
+  
+  (root "src")
+  (products (image (alias jazz.image))
+            (jazz.image (unit jazz.image.product)
+                        (update jazz.image
+                                jazz.image.product)
+                        (dependencies jazz)))
+  (project ".project"))

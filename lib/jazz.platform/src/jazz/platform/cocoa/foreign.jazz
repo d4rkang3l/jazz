@@ -3774,6 +3774,7 @@ void platformPlaySound(char* filename)
 {
     NSSound *sound = [[NSSound alloc] initWithContentsOfFile:[NSString stringWithUTF8String:filename] byReference:YES];
 
+    [sound setVolume:0.1];
     [sound play];
     [sound release];
 }
