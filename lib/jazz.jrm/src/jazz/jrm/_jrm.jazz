@@ -952,12 +952,10 @@
 
 (definition (with-write-mutex connection thunk)
   (let ((mutex (get-write-mutex~ connection)))
-    (let ((owner (mutex-owner mutex))
-          (stack (execution-stack lexical-environment?: #t depth: 16)))
-      (assert (eq? owner 'not-abandoned))
+    (let ((stack (execution-stack lexical-environment?: #t depth: 16)))
       (unwind-protect
           (begin
-            (mutex-lock! mutex)
+            (assert (mutex-lock! mutex 0.))
             (set-write-stack~ connection stack)
             (thunk))
         (set-write-stack~ connection #f)
@@ -974,12 +972,10 @@
 
 (definition (with-read-mutex connection thunk)
   (let ((mutex (get-read-mutex~ connection)))
-    (let ((owner (mutex-owner mutex))
-          (stack (execution-stack lexical-environment?: #t depth: 16)))
-      (assert (eq? owner 'not-abandoned))
+    (let ((stack (execution-stack lexical-environment?: #t depth: 16)))
       (unwind-protect
           (begin
-            (mutex-lock! mutex)
+            (assert (mutex-lock! mutex 0.))
             (set-read-stack~ connection stack)
             (thunk))
         (set-read-stack~ connection #f)
