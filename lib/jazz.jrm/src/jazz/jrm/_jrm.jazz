@@ -253,8 +253,6 @@
   (slot port        getter generate)
   (slot read-mutex  getter generate)
   (slot write-mutex getter generate)
-  (slot read-stack  accessors generate)
-  (slot write-stack accessors generate)
   (slot title       getter generate)
   (slot listener    getter generate)
   (slot protocol    accessors generate)
@@ -265,8 +263,6 @@
     (set! port~self port)
     (set! read-mutex~self (make-mutex 'read))
     (set! write-mutex~self (make-mutex 'write))
-    (set! read-stack~self #f)
-    (set! write-stack~self #f)
     (set! title~self title)
     (set! listener~self listener)
     (set! protocol~self protocol)
@@ -955,10 +951,10 @@
     (let ((stack (cons (execution-stack depth: 16) (execution-stack lexical-environment?: #t depth: 16))))
       (unwind-protect
           (begin
+            (thread-specific-set! (current-thread) stack)
             (assert (mutex-lock! mutex 0.))
-            (set-write-stack~ connection stack)
             (thunk))
-        (set-write-stack~ connection #f)
+        (thread-specific-set! (current-thread) #f)
         (mutex-unlock! mutex)))))
 
 
@@ -975,10 +971,10 @@
     (let ((stack (cons (execution-stack depth: 16) (execution-stack lexical-environment?: #t depth: 16))))
       (unwind-protect
           (begin
+            (thread-specific-set! (current-thread) stack)
             (assert (mutex-lock! mutex 0.))
-            (set-read-stack~ connection stack)
             (thunk))
-        (set-read-stack~ connection #f)
+        (thread-specific-set! (current-thread) #f)
         (mutex-unlock! mutex)))))
 
 
