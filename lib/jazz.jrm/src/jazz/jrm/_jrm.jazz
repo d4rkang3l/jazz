@@ -253,6 +253,8 @@
   (slot port        getter generate)
   (slot read-mutex  getter generate)
   (slot write-mutex getter generate)
+  (slot read-stack  accessors generate)
+  (slot write-stack accessors generate)
   (slot title       getter generate)
   (slot listener    getter generate)
   (slot protocol    accessors generate)
@@ -263,6 +265,8 @@
     (set! port~self port)
     (set! read-mutex~self (make-mutex 'read))
     (set! write-mutex~self (make-mutex 'write))
+    (set! read-stack~self #f)
+    (set! write-stack~self #f)
     (set! title~self title)
     (set! listener~self listener)
     (set! protocol~self protocol)
@@ -948,11 +952,16 @@
 
 (definition (with-write-mutex connection thunk)
   (let ((mutex (get-write-mutex~ connection)))
-    (unwind-protect
-        (begin
-          (mutex-lock! mutex)
-          (thunk))
-      (mutex-unlock! mutex))))
+    (let ((owner (mutex-owner mutex))
+          (stack (execution-stack lexical-environment?: #t depth: 16)))
+      (assert (eq? owner 'not-abandoned))
+      (unwind-protect
+          (begin
+            (mutex-lock! mutex)
+            (set-write-stack~ connection stack)
+            (thunk))
+        (set-write-stack~ connection #f)
+        (mutex-unlock! mutex)))))
 
 
 (definition (write-port port info)
@@ -965,11 +974,16 @@
 
 (definition (with-read-mutex connection thunk)
   (let ((mutex (get-read-mutex~ connection)))
-    (unwind-protect
-        (begin
-          (mutex-lock! mutex)
-          (thunk))
-      (mutex-unlock! mutex))))
+    (let ((owner (mutex-owner mutex))
+          (stack (execution-stack lexical-environment?: #t depth: 16)))
+      (assert (eq? owner 'not-abandoned))
+      (unwind-protect
+          (begin
+            (mutex-lock! mutex)
+            (set-read-stack~ connection stack)
+            (thunk))
+        (set-read-stack~ connection #f)
+        (mutex-unlock! mutex)))))
 
 
 (definition (read-port port)
