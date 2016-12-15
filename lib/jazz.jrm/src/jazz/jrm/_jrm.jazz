@@ -951,10 +951,9 @@
     (let ((stack (cons (execution-stack depth: 16) (execution-stack lexical-environment?: #t depth: 16))))
       (unwind-protect
           (begin
-            (thread-specific-set! (current-thread) stack)
             (assert (mutex-lock! mutex 0.))
+            (mutex-specific-set! mutex stack)
             (thunk))
-        (thread-specific-set! (current-thread) #f)
         (mutex-unlock! mutex)))))
 
 
@@ -971,8 +970,8 @@
     (let ((stack (cons (execution-stack depth: 16) (execution-stack lexical-environment?: #t depth: 16))))
       (unwind-protect
           (begin
-            (thread-specific-set! (current-thread) stack)
             (assert (mutex-lock! mutex 0.))
+            (mutex-specific-set! mutex stack)
             (thunk))
         (thread-specific-set! (current-thread) #f)
         (mutex-unlock! mutex)))))
